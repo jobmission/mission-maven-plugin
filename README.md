@@ -1,4 +1,6 @@
 
+## maven插件开发
+[Official Develop](https://maven.apache.org/plugin-developers/index.html)
 
 ## mvn mission:rows-count
 
@@ -21,6 +23,13 @@
                     <phase>compile</phase>
                     <goals>
                         <goal>rows-count</goal>
+                    </goals>
+                </execution>
+                
+                 <execution>
+                    <phase>compile</phase>
+                    <goals>
+                        <goal>check-library-version</goal>
                     </goals>
                 </execution>
             </executions>

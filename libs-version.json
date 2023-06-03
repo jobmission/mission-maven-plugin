@@ -1,0 +1,14 @@
+[
+  {
+    "name": "jquery",
+    "repository": "jquery",
+    "repositoryType": "git",
+    "version": "3.6.0"
+  },
+  {
+    "name": "bootstrap",
+    "repository": "twbs",
+    "repositoryType": "git",
+    "version": "v5.2.3"
+  }
+]

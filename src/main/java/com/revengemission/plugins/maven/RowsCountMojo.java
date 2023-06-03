@@ -1,4 +1,4 @@
-package com.revengemission.plugins.maven.countRows;
+package com.revengemission.plugins.maven;
 
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;

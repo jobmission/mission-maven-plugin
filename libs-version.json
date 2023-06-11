@@ -1,14 +1,30 @@
 [
   {
-    "name": "jquery",
+    "owner": "jquery",
     "repository": "jquery",
-    "repositoryType": "git",
-    "version": "3.6.0"
+    "version": "3.6.0",
+    "repositoryType": "git"
   },
   {
-    "name": "bootstrap",
-    "repository": "twbs",
-    "repositoryType": "git",
-    "version": "v5.2.3"
+    "owner": "twbs",
+    "repository": "bootstrap",
+    "version": "v5.2.3",
+    "repositoryType": "git"
+  },
+  {
+    "owner": "org.springframework.boot",
+    "repository": "spring-boot-starter-parent",
+    "version": "3.0.0",
+    "repositoryType": "maven"
+  },
+  {
+    "repository": "bootstrap",
+    "version": "5.0.0",
+    "repositoryType": "npm"
+  },
+  {
+    "repository": "mysql",
+    "version": "8.0.27",
+    "repositoryType": "docker"
   }
 ]

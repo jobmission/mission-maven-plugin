@@ -1,17 +1,17 @@
 package com.revengemission.plugins.maven;
 
 public class LibVersion {
-    private String name;
+    private String owner;
     private String repository;
     private String repositoryType;
     private String version;
 
-    public String getName() {
-        return name;
+    public String getOwner() {
+        return owner;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setOwner(String owner) {
+        this.owner = owner;
     }
 
     public String getRepository() {

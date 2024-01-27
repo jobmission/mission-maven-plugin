@@ -6,6 +6,12 @@
     "repositoryType": "git"
   },
   {
+    "owner": "josdejong",
+    "repository": "mathjs",
+    "version": "v12.2.0",
+    "repositoryType": "git"
+  },
+  {
     "owner": "twbs",
     "repository": "bootstrap",
     "version": "v5.2.3",

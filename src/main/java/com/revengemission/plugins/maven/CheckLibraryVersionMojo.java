@@ -119,6 +119,8 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             throw new RuntimeException(releasesUrl, e);
                         }
                     } else if ("maven".equalsIgnoreCase(libVersion.getRepositoryType())) {
+                        // maven也可以拼接这个地址
+                        // https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-parent/maven-metadata.xml
                         String url = String.format("https://search.maven.org/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=20&wt=json", libVersion.getOwner(), libVersion.getRepository());
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(url))

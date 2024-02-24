@@ -18,15 +18,19 @@
 -->
 
 <project>
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>com.revengemission.plugins</groupId>
-        <artifactId>mission-maven-plugin</artifactId>
-        <configuration>
-          <rulesUri>${basedir}/libs-version.json</rulesUri>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.revengemission.plugins</groupId>
+                <artifactId>mission-maven-plugin</artifactId>
+                <configuration>
+                    <rulesUri>${basedir}/libs-version.json</rulesUri>
+                    <dockerApiEndpoint>https://hub.docker.com/v2</dockerApiEndpoint>
+                    <mavenApiEndpoint>https://repo1.maven.org/maven2</mavenApiEndpoint>
+                    <githubApiEndpoint>https://api.github.com</githubApiEndpoint>
+                    <npmApiEndpoint>https://registry.npmjs.org/-/v1</npmApiEndpoint>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

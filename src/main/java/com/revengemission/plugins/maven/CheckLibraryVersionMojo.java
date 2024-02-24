@@ -3,6 +3,7 @@ package com.revengemission.plugins.maven;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -31,9 +32,20 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
     @Parameter(property = "project.basedir", readonly = true, required = true)
     private File basedir;
 
-
     @Parameter(defaultValue = "libs-version.json")
     private File rulesUri;
+
+    @Parameter(defaultValue = "https://hub.docker.com/v2")
+    private String dockerApiEndpoint;
+
+    @Parameter(defaultValue = "https://repo1.maven.org/maven2")
+    private String mavenApiEndpoint;
+
+    @Parameter(defaultValue = "https://api.github.com")
+    private String githubApiEndpoint;
+
+    @Parameter(defaultValue = "https://registry.npmjs.org/-/v1")
+    private String npmApiEndpoint;
 
     /**
      * execute
@@ -44,6 +56,8 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        XmlMapper xmlMapper = new XmlMapper();
+        xmlMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         if (rulesUri == null || !rulesUri.exists()) {
             getLog().error("config json file not exists!");
             throw new RuntimeException("config json file not exists!");
@@ -52,11 +66,11 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
             List<LibVersion> libVersionList = objectMapper.readValue(rulesUri, new TypeReference<>() {
             });
             getLog().info("config json file :" + rulesUri.getName());
-            if (libVersionList != null && libVersionList.size() > 0) {
+            if (libVersionList != null && !libVersionList.isEmpty()) {
                 getLog().info("The following libs have newer versions:");
                 libVersionList.forEach(libVersion -> {
                     if ("git".equalsIgnoreCase(libVersion.getRepositoryType())) {
-                        String releasesUrl = String.format("https://api.github.com/repos/%s/%s/releases?per_page=10&page=1", libVersion.getOwner(), libVersion.getRepository());
+                        String releasesUrl = String.format("%s/repos/%s/%s/releases?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(releasesUrl))
                                 .header("Accept", "application/json")
@@ -120,29 +134,30 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                         }
                     } else if ("maven".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         // maven也可以拼接这个地址
+                        // https://maven.aliyun.com/repository/public
                         // https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-parent/maven-metadata.xml
-                        String url = String.format("https://search.maven.org/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=20&wt=json", libVersion.getOwner(), libVersion.getRepository());
+                        // String url = String.format("https://search.maven.org/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=20&wt=json", libVersion.getOwner(), libVersion.getRepository());
+                        String url = String.format("%s/%s/%s/maven-metadata.xml", mavenApiEndpoint, libVersion.getOwner().replaceAll("\\.", "/"), libVersion.getRepository());
                         try {
-                            HttpRequest request = HttpRequest.newBuilder(new URI(url))
-                                .header("Accept", "application/json")
-                                .build();
+                            HttpRequest request = HttpRequest.newBuilder(new URI(url)).build();
 
-                            String response = HttpClient.newHttpClient()
-                                .send(request, HttpResponse.BodyHandlers.ofString())
-                                .body();
+                            HttpResponse<String> httpResponse = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
-                            MavenReleaseModel mavenReleaseModel = objectMapper.readValue(response, MavenReleaseModel.class);
+                            String responseBody = "";
+                            if (httpResponse.statusCode() == 302) {
+                                String newUrl = httpResponse.headers().firstValue("location").orElse("");
+                                getLog().warn("http redirect to " + newUrl);
+                                request = HttpRequest.newBuilder(new URI(newUrl)).build();
+                                httpResponse = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+                                responseBody = httpResponse.body();
+                            } else {
+                                responseBody = httpResponse.body();
+                            }
+                            MavenMetaData mavenMetaData = xmlMapper.readValue(responseBody, MavenMetaData.class);
 
-                            if (mavenReleaseModel != null && mavenReleaseModel.getResponse() != null && mavenReleaseModel.getResponse().getDocs() != null) {
+                            if (mavenMetaData != null && mavenMetaData.getVersioning() != null) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
-                                DefaultArtifactVersion latestVersion = oldVersion;
-                                for (int i = 0; i < mavenReleaseModel.getResponse().getDocs().size(); i++) {
-                                    MavenDocModel mavenDocModel = mavenReleaseModel.getResponse().getDocs().get(i);
-                                    DefaultArtifactVersion mavenVersion = new DefaultArtifactVersion(mavenDocModel.getV());
-                                    if (mavenVersion.compareTo(latestVersion) > 0) {
-                                        latestVersion = mavenVersion;
-                                    }
-                                }
+                                DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(mavenMetaData.getVersioning().getRelease());
                                 if (latestVersion.compareTo(oldVersion) > 0) {
                                     getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
                                 }
@@ -155,7 +170,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                         }
                     } else if ("npm".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         /// String url = String.format("https://registry.npmjs.org/-/v1/search?text=%s&size=5", libVersion.getRepository());
-                        String url = String.format("https://registry.npmmirror.com/-/v1/search?text=%s&size=5", libVersion.getRepository());
+                        String url = String.format("%s/search?text=%s&size=5", npmApiEndpoint, libVersion.getRepository());
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(url))
                                 .header("Accept", "application/json")
@@ -188,7 +203,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             throw new RuntimeException(url, e);
                         }
                     } else if ("docker".equalsIgnoreCase(libVersion.getRepositoryType())) {
-                        String url = String.format("https://hub.docker.com/v2/repositories/library/%s/tags?page_size=10", libVersion.getRepository());
+                        String url = String.format("%s/repositories/library/%s/tags?page_size=10", dockerApiEndpoint, libVersion.getRepository());
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(url))
                                 .header("Accept", "application/json")
@@ -200,7 +215,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
 
                             DockerReleaseModel dockerReleaseModel = objectMapper.readValue(response, DockerReleaseModel.class);
 
-                            if (dockerReleaseModel != null && dockerReleaseModel.getResults() != null && dockerReleaseModel.getResults().size() > 0) {
+                            if (dockerReleaseModel != null && dockerReleaseModel.getResults() != null && !dockerReleaseModel.getResults().isEmpty()) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 DefaultArtifactVersion latestVersion = oldVersion;
                                 for (int i = 0; i < dockerReleaseModel.getResults().size(); i++) {

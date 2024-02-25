@@ -10,6 +10,7 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.codehaus.plexus.util.StringUtils;
 
 import java.io.File;
 import java.net.URI;
@@ -157,7 +158,8 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
 
                             if (mavenMetaData != null && mavenMetaData.getVersioning() != null) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
-                                DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(mavenMetaData.getVersioning().getRelease());
+                                String latestVersionStr = StringUtils.isNotEmpty(mavenMetaData.getVersioning().getLatest()) ? mavenMetaData.getVersioning().getLatest() : mavenMetaData.getVersioning().getRelease();
+                                DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(latestVersionStr);
                                 if (latestVersion.compareTo(oldVersion) > 0) {
                                     getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
                                 }

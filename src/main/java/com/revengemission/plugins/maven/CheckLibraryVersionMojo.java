@@ -48,6 +48,8 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
     @Parameter(defaultValue = "https://registry.npmjs.org/-/v1")
     private String npmApiEndpoint;
 
+    HttpClient httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+
     /**
      * execute
      *
@@ -77,9 +79,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                 .header("Accept", "application/json")
                                 .build();
 
-                            String response = HttpClient.newHttpClient()
-                                .send(request, HttpResponse.BodyHandlers.ofString())
-                                .body();
+                            String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
 
                             List<GitReleaseModel> gitReleaseModelList = objectMapper.readValue(response, new TypeReference<>() {
                             });
@@ -105,9 +105,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                     .header("Accept", "application/json")
                                     .build();
 
-                                String responseTags = HttpClient.newHttpClient()
-                                    .send(requestTags, HttpResponse.BodyHandlers.ofString())
-                                    .body();
+                                String responseTags = httpClient.send(requestTags, HttpResponse.BodyHandlers.ofString()).body();
 
                                 List<GitReleaseModel> gitReleaseModelListTags = objectMapper.readValue(responseTags, new TypeReference<>() {
                                 });
@@ -142,18 +140,9 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(url)).build();
 
-                            HttpResponse<String> httpResponse = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+                            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-                            String responseBody = "";
-                            if (httpResponse.statusCode() == 302) {
-                                String newUrl = httpResponse.headers().firstValue("location").orElse("");
-                                getLog().warn("http redirect to " + newUrl);
-                                request = HttpRequest.newBuilder(new URI(newUrl)).build();
-                                httpResponse = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-                                responseBody = httpResponse.body();
-                            } else {
-                                responseBody = httpResponse.body();
-                            }
+                            String responseBody = httpResponse.body();
                             MavenMetaData mavenMetaData = xmlMapper.readValue(responseBody, MavenMetaData.class);
 
                             if (mavenMetaData != null && mavenMetaData.getVersioning() != null) {
@@ -178,9 +167,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                 .header("Accept", "application/json")
                                 .build();
 
-                            String response = HttpClient.newHttpClient()
-                                .send(request, HttpResponse.BodyHandlers.ofString())
-                                .body();
+                            String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
 
                             NpmReleaseModel npmReleaseModel = objectMapper.readValue(response, NpmReleaseModel.class);
 
@@ -211,9 +198,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                 .header("Accept", "application/json")
                                 .build();
 
-                            String response = HttpClient.newHttpClient()
-                                .send(request, HttpResponse.BodyHandlers.ofString())
-                                .body();
+                            String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
 
                             DockerReleaseModel dockerReleaseModel = objectMapper.readValue(response, DockerReleaseModel.class);
 

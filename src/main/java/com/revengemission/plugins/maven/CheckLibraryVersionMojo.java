@@ -17,6 +17,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -47,6 +49,9 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
 
     @Parameter(defaultValue = "https://registry.npmjs.org/-/v1")
     private String npmApiEndpoint;
+
+    DateTimeFormatter yyyyMMddHHmmss = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    DateTimeFormatter yyyyMMddHHmmssHumanized = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     HttpClient httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
 
@@ -151,6 +156,10 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                 DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(latestVersionStr);
                                 if (latestVersion.compareTo(oldVersion) > 0) {
                                     getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                } else {
+                                    LocalDateTime lastUpdatedTime = LocalDateTime.parse(mavenMetaData.getVersioning().getLastUpdated(), yyyyMMddHHmmss);
+                                    long daysDiff = LocalDateTime.now().toLocalDate().toEpochDay() - lastUpdatedTime.toLocalDate().toEpochDay();
+                                    getLog().info(libVersion.getRepository() + " last updated @ " + lastUpdatedTime.format(yyyyMMddHHmmssHumanized) + ", " + daysDiff + " days have passed !");
                                 }
                             } else {
                                 getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
@@ -171,7 +180,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
 
                             NpmReleaseModel npmReleaseModel = objectMapper.readValue(response, NpmReleaseModel.class);
 
-                            if (npmReleaseModel != null && npmReleaseModel.getObjects() != null && npmReleaseModel.getObjects().size() > 0) {
+                            if (npmReleaseModel != null && npmReleaseModel.getObjects() != null && !npmReleaseModel.getObjects().isEmpty()) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 DefaultArtifactVersion latestVersion = oldVersion;
                                 for (int i = 0; i < npmReleaseModel.getObjects().size(); i++) {

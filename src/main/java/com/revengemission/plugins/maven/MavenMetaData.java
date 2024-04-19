@@ -3,7 +3,6 @@ package com.revengemission.plugins.maven;
 public class MavenMetaData {
     private String groupId;
     private String artifactId;
-    private long lastUpdated;
     private MavenVersioning versioning;
 
     public String getGroupId() {
@@ -22,13 +21,6 @@ public class MavenMetaData {
         this.artifactId = artifactId;
     }
 
-    public long getLastUpdated() {
-        return lastUpdated;
-    }
-
-    public void setLastUpdated(long lastUpdated) {
-        this.lastUpdated = lastUpdated;
-    }
 
     public MavenVersioning getVersioning() {
         return versioning;
@@ -43,7 +35,6 @@ public class MavenMetaData {
         return "MavenMetaData{" +
             "groupId='" + groupId + '\'' +
             ", artifactId='" + artifactId + '\'' +
-            ", lastUpdated=" + lastUpdated +
             ", versioning=" + versioning +
             '}';
     }

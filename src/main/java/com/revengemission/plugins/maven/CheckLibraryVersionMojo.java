@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -31,12 +32,17 @@ import java.util.List;
 )
 public class CheckLibraryVersionMojo extends AbstractMojo {
 
-
-    @Parameter(property = "project.basedir", readonly = true, required = true)
+    @Parameter(property = "project.basedir", readonly = true)
     private File basedir;
 
     @Parameter(defaultValue = "libs-version.json")
     private File rulesUri;
+
+    @Parameter(defaultValue = "true")
+    private boolean verbose;
+
+    @Parameter(defaultValue = ".*[-_\\.](alpha|Alpha|ALPHA|b|beta|Beta|BETA|rc|RC|M|EA)[-_\\.]?[0-9]*")
+    private String draftReleaseRegex;
 
     @Parameter(defaultValue = "https://hub.docker.com/v2")
     private String dockerApiEndpoint;
@@ -53,7 +59,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
     DateTimeFormatter yyyyMMddHHmmss = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     DateTimeFormatter yyyyMMddHHmmssHumanized = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    HttpClient httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+    HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.ALWAYS).build();
 
     /**
      * execute
@@ -67,15 +73,15 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
         XmlMapper xmlMapper = new XmlMapper();
         xmlMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         if (rulesUri == null || !rulesUri.exists()) {
-            getLog().error("config json file not exists!");
-            throw new RuntimeException("config json file not exists!");
+            getLog().error("config json file not exists! " + rulesUri.getPath());
+            return;
         }
+        StringBuilder newVersionsStringBuilder = new StringBuilder();
         try {
             List<LibVersion> libVersionList = objectMapper.readValue(rulesUri, new TypeReference<>() {
             });
-            getLog().info("config json file :" + rulesUri.getName());
+            getLog().info("config json file :" + rulesUri.getPath());
             if (libVersionList != null && !libVersionList.isEmpty()) {
-                getLog().info("The following libs have newer versions:");
                 libVersionList.forEach(libVersion -> {
                     if ("git".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         String releasesUrl = String.format("%s/repos/%s/%s/releases?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
@@ -92,8 +98,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             if (gitReleaseModelList != null && !gitReleaseModelList.isEmpty()) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 DefaultArtifactVersion latestVersion = oldVersion;
-                                for (int i = 0; i < gitReleaseModelList.size(); i++) {
-                                    GitReleaseModel gitReleaseModel = gitReleaseModelList.get(i);
+                                for (GitReleaseModel gitReleaseModel : gitReleaseModelList) {
                                     if (!gitReleaseModel.isDraft() && !gitReleaseModel.isPrerelease()) {
                                         DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getTag_name());
                                         if (gitVersion.compareTo(latestVersion) > 0) {
@@ -102,7 +107,9 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                     }
                                 }
                                 if (latestVersion.compareTo(oldVersion) > 0) {
-                                    getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                } else if (verbose) {
+                                    getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                 }
                             } else {
                                 String tagsUrl = String.format("https://api.github.com/repos/%s/%s/tags?per_page=10&page=1", libVersion.getOwner(), libVersion.getRepository());
@@ -118,15 +125,16 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                 if (!gitReleaseModelListTags.isEmpty()) {
                                     DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                     DefaultArtifactVersion latestVersion = oldVersion;
-                                    for (int i = 0; i < gitReleaseModelListTags.size(); i++) {
-                                        GitReleaseModel gitReleaseModel = gitReleaseModelListTags.get(i);
+                                    for (GitReleaseModel gitReleaseModel : gitReleaseModelListTags) {
                                         DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getName());
                                         if (gitVersion.compareTo(latestVersion) > 0) {
                                             latestVersion = gitVersion;
                                         }
                                     }
                                     if (latestVersion.compareTo(oldVersion) > 0) {
-                                        getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                        newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                    } else if (verbose) {
+                                        getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                     }
                                 } else {
                                     getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
@@ -134,7 +142,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             }
 
                         } catch (Exception e) {
-                            throw new RuntimeException(releasesUrl, e);
+                            getLog().error(releasesUrl, e);
                         }
                     } else if ("maven".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         // maven也可以拼接这个地址
@@ -153,20 +161,28 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             if (mavenMetaData != null && mavenMetaData.getVersioning() != null) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 String latestVersionStr = StringUtils.isNotEmpty(mavenMetaData.getVersioning().getLatest()) ? mavenMetaData.getVersioning().getLatest() : mavenMetaData.getVersioning().getRelease();
-                                DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(latestVersionStr);
-                                if (latestVersion.compareTo(oldVersion) > 0) {
-                                    getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                LocalDateTime lastUpdatedTime = LocalDateTime.parse(mavenMetaData.getVersioning().getLastUpdated(), yyyyMMddHHmmss);
+                                long daysDiff = LocalDateTime.now().toLocalDate().toEpochDay() - lastUpdatedTime.toLocalDate().toEpochDay();
+                                if (latestVersionStr.matches(draftReleaseRegex)) {
+                                    getLog().info(libVersion.getOwner() + " last draft released at " + lastUpdatedTime.format(yyyyMMddHHmmssHumanized) + ", " + daysDiff + " days have passed .");
                                 } else {
-                                    LocalDateTime lastUpdatedTime = LocalDateTime.parse(mavenMetaData.getVersioning().getLastUpdated(), yyyyMMddHHmmss);
-                                    long daysDiff = LocalDateTime.now().toLocalDate().toEpochDay() - lastUpdatedTime.toLocalDate().toEpochDay();
-                                    getLog().info(libVersion.getRepository() + " last updated @ " + lastUpdatedTime.format(yyyyMMddHHmmssHumanized) + ", " + daysDiff + " days have passed !");
+                                    DefaultArtifactVersion latestVersion = new DefaultArtifactVersion(latestVersionStr);
+                                    if (latestVersion.compareTo(oldVersion) > 0) {
+                                        newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(" last released at ").append(lastUpdatedTime.format(yyyyMMddHHmmssHumanized)).append(", ").append(daysDiff).append(" days have passed !").append("\n");
+                                    } else if (verbose) {
+                                        if (daysDiff > 365) {
+                                            getLog().warn(libVersion.getRepository() + " last released at " + lastUpdatedTime.format(yyyyMMddHHmmssHumanized) + ", " + daysDiff + " days have passed !");
+                                        } else {
+                                            getLog().info(libVersion.getRepository() + " last released at " + lastUpdatedTime.format(yyyyMMddHHmmssHumanized) + ", " + daysDiff + " days have passed .");
+                                        }
+                                    }
                                 }
                             } else {
                                 getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
                             }
 
                         } catch (Exception e) {
-                            throw new RuntimeException(url, e);
+                            getLog().error(url, e);
                         }
                     } else if ("npm".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         /// String url = String.format("https://registry.npmjs.org/-/v1/search?text=%s&size=5", libVersion.getRepository());
@@ -191,14 +207,16 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                     }
                                 }
                                 if (latestVersion.compareTo(oldVersion) > 0) {
-                                    getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                } else if (verbose) {
+                                    getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                 }
                             } else {
                                 getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
                             }
 
                         } catch (Exception e) {
-                            throw new RuntimeException(url, e);
+                            getLog().error(url, e);
                         }
                     } else if ("docker".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         String url = String.format("%s/repositories/library/%s/tags?page_size=10", dockerApiEndpoint, libVersion.getRepository());
@@ -222,21 +240,30 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                     }
                                 }
                                 if (latestVersion.compareTo(oldVersion) > 0) {
-                                    getLog().info(libVersion.getRepository() + " has newer version ... " + libVersion.getVersion() + " -> " + latestVersion);
+                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                } else if (verbose) {
+                                    getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                 }
                             } else {
                                 getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
                             }
 
                         } catch (Exception e) {
-                            throw new RuntimeException(url, e);
+                            getLog().error(url, e);
                         }
                     }
 
                 });
             }
+            Thread.sleep(1000 * 2);
         } catch (Exception e) {
             throw new MojoExecutionException("execute failed:", e);
+        }
+
+        if (newVersionsStringBuilder.length() > 0) {
+            getLog().info("The following libs has newer versions:\n" + newVersionsStringBuilder);
+        } else {
+            getLog().info("All config libs has no newer versions.");
         }
     }
 

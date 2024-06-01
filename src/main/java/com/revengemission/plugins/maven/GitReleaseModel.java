@@ -5,6 +5,8 @@ public class GitReleaseModel {
     private String name;
     private boolean prerelease;
     private boolean draft;
+    private String published_at;
+    private String created_at;
 
     public String getTag_name() {
         return tag_name;
@@ -36,5 +38,21 @@ public class GitReleaseModel {
 
     public void setDraft(boolean draft) {
         this.draft = draft;
+    }
+
+    public String getPublished_at() {
+        return published_at;
+    }
+
+    public void setPublished_at(String published_at) {
+        this.published_at = published_at;
+    }
+
+    public String getCreated_at() {
+        return created_at;
+    }
+
+    public void setCreated_at(String created_at) {
+        this.created_at = created_at;
     }
 }

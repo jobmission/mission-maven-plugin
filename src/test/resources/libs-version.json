@@ -9,7 +9,8 @@
     "owner": "josdejong",
     "repository": "mathjs",
     "version": "v12.2.0",
-    "repositoryType": "git"
+    "repositoryType": "git",
+    "releaseType": "tag"
   },
   {
     "owner": "twbs",
@@ -21,6 +22,12 @@
     "owner": "org.springframework.boot",
     "repository": "spring-boot-starter-parent",
     "version": "3.0.0",
+    "repositoryType": "maven"
+  },
+  {
+    "owner": "junit",
+    "repository": "junit",
+    "version": "4.13.2",
     "repositoryType": "maven"
   },
   {

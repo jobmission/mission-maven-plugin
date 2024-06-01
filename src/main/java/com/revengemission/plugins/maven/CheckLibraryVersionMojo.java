@@ -84,49 +84,88 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
             if (libVersionList != null && !libVersionList.isEmpty()) {
                 libVersionList.forEach(libVersion -> {
                     if ("git".equalsIgnoreCase(libVersion.getRepositoryType())) {
-                        String releasesUrl = String.format("%s/repos/%s/%s/releases?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
-                        try {
-                            HttpRequest request = HttpRequest.newBuilder(new URI(releasesUrl))
-                                .header("Accept", "application/json")
-                                .build();
-
-                            String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
-
-                            List<GitReleaseModel> gitReleaseModelList = objectMapper.readValue(response, new TypeReference<>() {
-                            });
-
-                            if (gitReleaseModelList != null && !gitReleaseModelList.isEmpty()) {
-                                DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
-                                DefaultArtifactVersion latestVersion = oldVersion;
-                                for (GitReleaseModel gitReleaseModel : gitReleaseModelList) {
-                                    if (!gitReleaseModel.isDraft() && !gitReleaseModel.isPrerelease()) {
-                                        DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getTag_name());
-                                        if (gitVersion.compareTo(latestVersion) > 0) {
-                                            latestVersion = gitVersion;
-                                        }
-                                    }
-                                }
-                                if (latestVersion.compareTo(oldVersion) > 0) {
-                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
-                                } else if (verbose) {
-                                    getLog().info(libVersion.getRepository() + " doesn't have newer version .");
-                                }
-                            } else {
-                                String tagsUrl = String.format("https://api.github.com/repos/%s/%s/tags?per_page=10&page=1", libVersion.getOwner(), libVersion.getRepository());
-                                HttpRequest requestTags = HttpRequest.newBuilder(new URI(tagsUrl))
+                        if (libVersion.getRepositoryType() == null || "".equalsIgnoreCase(libVersion.getRepositoryType()) || "release".equalsIgnoreCase(libVersion.getRepositoryType())) {
+                            String releasesUrl = String.format("%s/repos/%s/%s/releases?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
+                            try {
+                                HttpRequest request = HttpRequest.newBuilder(new URI(releasesUrl))
                                     .header("Accept", "application/json")
                                     .build();
 
-                                String responseTags = httpClient.send(requestTags, HttpResponse.BodyHandlers.ofString()).body();
+                                String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
 
-                                List<GitReleaseModel> gitReleaseModelListTags = objectMapper.readValue(responseTags, new TypeReference<>() {
+                                List<GitReleaseModel> gitReleaseModelList = objectMapper.readValue(response, new TypeReference<>() {
                                 });
 
-                                if (!gitReleaseModelListTags.isEmpty()) {
+                                if (gitReleaseModelList != null && !gitReleaseModelList.isEmpty()) {
                                     DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                     DefaultArtifactVersion latestVersion = oldVersion;
-                                    for (GitReleaseModel gitReleaseModel : gitReleaseModelListTags) {
-                                        DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getName());
+                                    String latestVersionReleaseTime = "";
+                                    for (GitReleaseModel gitReleaseModel : gitReleaseModelList) {
+                                        if (!gitReleaseModel.isDraft() && !gitReleaseModel.isPrerelease()) {
+                                            DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getTag_name());
+                                            if (gitVersion.compareTo(latestVersion) > 0) {
+                                                latestVersion = gitVersion;
+                                                latestVersionReleaseTime = gitReleaseModel.getPublished_at();
+                                            }
+                                        }
+                                    }
+                                    if (latestVersion.compareTo(oldVersion) > 0) {
+                                        newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(" last released at ").append(latestVersionReleaseTime).append("\n");
+                                    } else if (verbose) {
+                                        getLog().info(libVersion.getRepository() + " doesn't have newer version .");
+                                    }
+                                } else {
+                                    String tagsUrl = String.format("https://api.github.com/repos/%s/%s/tags?per_page=10&page=1", libVersion.getOwner(), libVersion.getRepository());
+                                    HttpRequest requestTags = HttpRequest.newBuilder(new URI(tagsUrl))
+                                        .header("Accept", "application/json")
+                                        .build();
+
+                                    String responseTags = httpClient.send(requestTags, HttpResponse.BodyHandlers.ofString()).body();
+
+                                    List<GitReleaseModel> gitReleaseModelListTags = objectMapper.readValue(responseTags, new TypeReference<>() {
+                                    });
+
+                                    if (!gitReleaseModelListTags.isEmpty()) {
+                                        DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
+                                        DefaultArtifactVersion latestVersion = oldVersion;
+                                        String latestVersionReleaseTime = "";
+                                        for (GitReleaseModel gitReleaseModel : gitReleaseModelListTags) {
+                                            DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getName());
+                                            if (gitVersion.compareTo(latestVersion) > 0) {
+                                                latestVersion = gitVersion;
+                                                latestVersionReleaseTime = gitReleaseModel.getPublished_at();
+                                            }
+                                        }
+                                        if (latestVersion.compareTo(oldVersion) > 0) {
+                                            newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(" last released at ").append(latestVersionReleaseTime).append("\n");
+                                        } else if (verbose) {
+                                            getLog().info(libVersion.getRepository() + " doesn't have newer version .");
+                                        }
+                                    } else {
+                                        getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
+                                    }
+                                }
+
+                            } catch (Exception e) {
+                                getLog().error(releasesUrl, e);
+                            }
+                        } else {
+                            String releasesUrl = String.format("%s/repos/%s/%s/tags?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
+                            try {
+                                HttpRequest request = HttpRequest.newBuilder(new URI(releasesUrl))
+                                    .header("Accept", "application/json")
+                                    .build();
+
+                                String response = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
+
+                                List<GitTagModel> gitTagModelList = objectMapper.readValue(response, new TypeReference<>() {
+                                });
+
+                                if (gitTagModelList != null && !gitTagModelList.isEmpty()) {
+                                    DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
+                                    DefaultArtifactVersion latestVersion = oldVersion;
+                                    for (GitTagModel gitTagModel : gitTagModelList) {
+                                        DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitTagModel.getName());
                                         if (gitVersion.compareTo(latestVersion) > 0) {
                                             latestVersion = gitVersion;
                                         }
@@ -137,13 +176,42 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                                         getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                     }
                                 } else {
-                                    getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
-                                }
-                            }
+                                    String tagsUrl = String.format("https://api.github.com/repos/%s/%s/tags?per_page=10&page=1", libVersion.getOwner(), libVersion.getRepository());
+                                    HttpRequest requestTags = HttpRequest.newBuilder(new URI(tagsUrl))
+                                        .header("Accept", "application/json")
+                                        .build();
 
-                        } catch (Exception e) {
-                            getLog().error(releasesUrl, e);
+                                    String responseTags = httpClient.send(requestTags, HttpResponse.BodyHandlers.ofString()).body();
+
+                                    List<GitReleaseModel> gitReleaseModelListTags = objectMapper.readValue(responseTags, new TypeReference<>() {
+                                    });
+
+                                    if (!gitReleaseModelListTags.isEmpty()) {
+                                        DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
+                                        DefaultArtifactVersion latestVersion = oldVersion;
+                                        String latestVersionReleaseTime = "";
+                                        for (GitReleaseModel gitReleaseModel : gitReleaseModelListTags) {
+                                            DefaultArtifactVersion gitVersion = new DefaultArtifactVersion(gitReleaseModel.getName());
+                                            if (gitVersion.compareTo(latestVersion) > 0) {
+                                                latestVersion = gitVersion;
+                                                latestVersionReleaseTime = gitReleaseModel.getPublished_at();
+                                            }
+                                        }
+                                        if (latestVersion.compareTo(oldVersion) > 0) {
+                                            newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(" last released at ").append(latestVersionReleaseTime).append("\n");
+                                        } else if (verbose) {
+                                            getLog().info(libVersion.getRepository() + " doesn't have newer version .");
+                                        }
+                                    } else {
+                                        getLog().warn(libVersion.getRepository() + "(" + libVersion.getRepositoryType() + ") 未获取到版本记录 ");
+                                    }
+                                }
+
+                            } catch (Exception e) {
+                                getLog().error(releasesUrl, e);
+                            }
                         }
+
                     } else if ("maven".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         // maven也可以拼接这个地址
                         // https://maven.aliyun.com/repository/public
@@ -186,6 +254,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                         }
                     } else if ("npm".equalsIgnoreCase(libVersion.getRepositoryType())) {
                         /// String url = String.format("https://registry.npmjs.org/-/v1/search?text=%s&size=5", libVersion.getRepository());
+                        /// String url = "http://www.npmmirror.com/package/mathjs";
                         String url = String.format("%s/search?text=%s&size=5", npmApiEndpoint, libVersion.getRepository());
                         try {
                             HttpRequest request = HttpRequest.newBuilder(new URI(url))
@@ -199,15 +268,17 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             if (npmReleaseModel != null && npmReleaseModel.getObjects() != null && !npmReleaseModel.getObjects().isEmpty()) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 DefaultArtifactVersion latestVersion = oldVersion;
+                                String latestVersionReleaseTime = "";
                                 for (int i = 0; i < npmReleaseModel.getObjects().size(); i++) {
                                     NpmPackageModel npmPackageModel = npmReleaseModel.getObjects().get(i);
                                     DefaultArtifactVersion npmVersion = new DefaultArtifactVersion(npmPackageModel.getPackageDetailModel().getVersion());
                                     if (libVersion.getRepository().equalsIgnoreCase(npmPackageModel.getPackageDetailModel().getName()) && npmVersion.compareTo(latestVersion) > 0) {
                                         latestVersion = npmVersion;
+                                        latestVersionReleaseTime = npmPackageModel.getPackageDetailModel().getDate();
                                     }
                                 }
                                 if (latestVersion.compareTo(oldVersion) > 0) {
-                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(latestVersion).append(" last released at ").append(latestVersionReleaseTime).append("\n");
                                 } else if (verbose) {
                                     getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                 }
@@ -232,15 +303,17 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
                             if (dockerReleaseModel != null && dockerReleaseModel.getResults() != null && !dockerReleaseModel.getResults().isEmpty()) {
                                 DefaultArtifactVersion oldVersion = new DefaultArtifactVersion(libVersion.getVersion());
                                 DefaultArtifactVersion latestVersion = oldVersion;
+                                String latestVersionReleaseTime = "";
                                 for (int i = 0; i < dockerReleaseModel.getResults().size(); i++) {
                                     DockerItemModel dockerItemModel = dockerReleaseModel.getResults().get(i);
                                     DefaultArtifactVersion dockerVersion = new DefaultArtifactVersion(dockerItemModel.getName());
                                     if (!"latest".equalsIgnoreCase(dockerItemModel.getName()) && dockerVersion.compareTo(latestVersion) > 0) {
                                         latestVersion = dockerVersion;
+                                        latestVersionReleaseTime = dockerItemModel.getTag_last_pushed();
                                     }
                                 }
                                 if (latestVersion.compareTo(oldVersion) > 0) {
-                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append("\n");
+                                    newVersionsStringBuilder.append(libVersion.getRepository()).append(" has newer version ... ").append(libVersion.getVersion()).append(" -> ").append(latestVersion).append(latestVersion).append(" last released at ").append(latestVersionReleaseTime).append("\n");
                                 } else if (verbose) {
                                     getLog().info(libVersion.getRepository() + " doesn't have newer version .");
                                 }

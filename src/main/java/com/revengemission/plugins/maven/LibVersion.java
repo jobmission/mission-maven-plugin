@@ -5,6 +5,8 @@ public class LibVersion {
     private String repository;
     private String repositoryType;
     private String version;
+    // release or tag
+    private String releaseType = "release";
 
     public String getOwner() {
         return owner;
@@ -36,5 +38,13 @@ public class LibVersion {
 
     public void setVersion(String version) {
         this.version = version;
+    }
+
+    public String getReleaseType() {
+        return releaseType;
+    }
+
+    public void setReleaseType(String releaseType) {
+        this.releaseType = releaseType;
     }
 }

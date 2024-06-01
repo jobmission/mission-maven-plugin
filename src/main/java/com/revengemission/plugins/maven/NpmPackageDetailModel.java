@@ -3,6 +3,7 @@ package com.revengemission.plugins.maven;
 public class NpmPackageDetailModel {
     private String name;
     private String version;
+    private String date;
 
     public String getName() {
         return name;
@@ -20,4 +21,11 @@ public class NpmPackageDetailModel {
         this.version = version;
     }
 
+    public String getDate() {
+        return date;
+    }
+
+    public void setDate(String date) {
+        this.date = date;
+    }
 }

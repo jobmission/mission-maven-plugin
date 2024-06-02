@@ -84,7 +84,7 @@ public class CheckLibraryVersionMojo extends AbstractMojo {
             if (libVersionList != null && !libVersionList.isEmpty()) {
                 libVersionList.forEach(libVersion -> {
                     if ("git".equalsIgnoreCase(libVersion.getRepositoryType())) {
-                        if (libVersion.getRepositoryType() == null || "".equalsIgnoreCase(libVersion.getRepositoryType()) || "release".equalsIgnoreCase(libVersion.getRepositoryType())) {
+                        if (libVersion.getRepositoryType() == null || "".equalsIgnoreCase(libVersion.getRepositoryType()) || "release".equalsIgnoreCase(libVersion.getReleaseType())) {
                             String releasesUrl = String.format("%s/repos/%s/%s/releases?per_page=10&page=1", githubApiEndpoint, libVersion.getOwner(), libVersion.getRepository());
                             try {
                                 HttpRequest request = HttpRequest.newBuilder(new URI(releasesUrl))
